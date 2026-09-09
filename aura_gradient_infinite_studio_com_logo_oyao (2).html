@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OYAO! Studio - Aura Gradient Infinite</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    @font-face {
+      font-family: 'lacabeza';
+      src: local('lacabeza'), local('Lacabeza'), local('lacaneza');
+      font-display: swap;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: #ffffff;
+      color: #1a1a1a;
+      overflow-x: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* Canvas Fixo para renderização dos círculos */
+    #aura-canvas-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 0;
+      background: #ffffff;
+      transition: background-color 0.25s ease;
+    }
+
+    /* Esfera de Cor Dinâmica */
+    .aura-orb-element {
+      position: absolute;
+      border-radius: 50%;
+      will-change: transform, opacity;
+      transform: translate3d(0, 0, 0);
+      transform-origin: center center;
+      transition: filter 0.2s ease, outline 0.2s ease;
+      pointer-events: none;
+    }
+
+    /* Estilo do modo de inspeção sem blur */
+    .no-blur-mode .aura-orb-element {
+      outline: 2px dashed rgba(0, 0, 0, 0.45);
+      outline-offset: -2px;
+    }
+
+    /* Camada de Ruído / Grão Analógico */
+    .noise-overlay {
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      pointer-events: none;
+      background-repeat: repeat;
+      mix-blend-mode: overlay;
+    }
+
+    /* Camada de Vidro Fosco Global */
+    .frosted-pass {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    /* Scrollbars customizadas */
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.03);
+      border-radius: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 4px;
+    }
+
+    /* Sliders estilizados */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 5px;
+      border-radius: 9999px;
+      background: #e2e8f0;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #0f172a;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+      transition: transform 0.1s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #0f172a;
+      cursor: pointer;
+      border: none;
+    }
+
+    /* Slider de Matiz */
+    .hue-slider {
+      background: linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%) !important;
+      height: 7px !important;
+    }
+    .hue-slider::-webkit-slider-thumb {
+      background: #ffffff !important;
+      border: 2px solid #0f172a !important;
+      width: 16px !important;
+      height: 16px !important;
+    }
+
+    /* Logo em Branco Puro e Plano sem nenhuma sombra */
+    .logo-papercut-flat {
+      filter: none !important;
+      box-shadow: none !important;
+      text-shadow: none !important;
+      will-change: transform;
+      transform-origin: center top;
+    }
+    .logo-papercut-flat svg,
+    .logo-papercut-flat path,
+    .logo-papercut-flat polygon {
+      filter: none !important;
+    }
+  </style>
+</head>
+
+<body class="relative selection:bg-rose-500 selection:text-white">
+
+  <!-- ========================================================= -->
+  <!-- CANVAS COM QUANTIDADE DINÂMICA DE CÍRCULOS (INFINITOS)    -->
+  <!-- ========================================================= -->
+  <div id="aura-canvas-container" aria-hidden="true">
+    <!-- Círculos injetados e gerenciados via JavaScript -->
+    <div id="orbs-render-layer"></div>
+
+    <!-- Vidro Fosco Global (Frosted Glass) -->
+    <div id="frosted-layer" class="frosted-pass"></div>
+
+    <!-- Camada de Granulação Analógica (Noise) -->
+    <div id="noise-layer" class="noise-overlay" style="background-image: url('data:image/svg+xml;utf8,<svg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22><filter id=%22noise%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.8%22 numOctaves=%223%22 stitchTiles=%22stitch%22/></filter><rect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noise)%22 opacity=%221%22/></svg>');"></div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- PALCO PRINCIPAL: LOGO OYAO! CENTRALIZADA NA TELA          -->
+  <!-- ========================================================= -->
+  <div 
+    id="hero-logo-container" 
+    class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-[88vw] max-w-[520px] sm:max-w-[620px] pointer-events-none flex items-center justify-center select-none"
+  >
+    <div id="hero-logo-inner" class="logo-papercut-flat w-full flex items-center justify-center">
+      <!-- SVG fielmente reconstruído com corte facetado plano (sem sombra) -->
+      <svg 
+        id="hero-logo-svg" 
+        viewBox="0 0 920 340" 
+        class="w-full h-auto max-h-[190px] sm:max-h-[250px]" 
+        aria-label="Logo OYAO! em corte de papel puro branco"
+      >
+        <!-- Letra 'O' (Recorte facetado estilo colagem) -->
+        <polygon 
+          points="95,190 115,130 160,88 235,82 290,128 305,188 288,252 232,295 158,296 108,255 92,205" 
+          fill="#ffffff" 
+        />
+        
+        <!-- Letra 'Y' (Braço esquerdo angular, braço direito esbelto e haste reta) -->
+        <polygon 
+          points="282,78 328,78 368,172 414,70 452,68 392,205 388,300 352,300 354,208" 
+          fill="#ffffff" 
+        />
+        
+        <!-- Letra 'A' (Corpo angular recortado com orifício central) -->
+        <path 
+          fill="#ffffff" 
+          fill-rule="evenodd" 
+          d="M440,302 L504,78 L584,80 L642,302 L582,302 L564,204 L508,204 L490,302 Z M518,154 L554,154 L548,116 L524,116 Z" 
+        />
+        
+        <!-- Letra 'O' (Segundo círculo em recorte facetado) -->
+        <polygon 
+          points="652,152 682,92 748,78 808,115 822,174 804,242 752,282 688,278 650,225 644,170" 
+          fill="#ffffff" 
+        />
+        
+        <!-- Ponto de Exclamação '!' (Haste facetada angular e ponto solto) -->
+        <polygon 
+          points="854,58 888,64 880,248 858,244" 
+          fill="#ffffff" 
+        />
+        <polygon 
+          points="856,275 882,270 894,295 882,322 858,324 848,300" 
+          fill="#ffffff" 
+        />
+      </svg>
+    </div>
+  </div>
+
+  <!-- Trilho de rolagem que permite testar o scroll contínuo e a fluidez do fundo -->
+  <main class="relative z-20 w-full min-h-[350vh] pointer-events-none flex flex-col items-center justify-end pb-16">
+    <div class="p-3 px-5 rounded-full bg-black/10 backdrop-blur-md border border-white/20 text-neutral-800 text-xs font-mono font-semibold select-none flex items-center gap-2">
+      <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+      <span>Role para navegar pelo gradiente</span>
+    </div>
+  </main>
+
+  <!-- ========================================================= -->
+  <!-- PAINEL DE CONTROLE FLUTUANTE (MINIMIZADO POR PADRÃO)      -->
+  <!-- ========================================================= -->
+  <aside 
+    id="control-panel"
+    class="hidden fixed top-3 right-3 z-50 w-[95vw] max-w-[420px] bg-white/95 backdrop-blur-2xl border border-white/60 shadow-2xl rounded-3xl overflow-hidden transition-all duration-300 select-none max-h-[94vh] flex flex-col pointer-events-auto"
+  >
+    <!-- Cabeçalho do Painel -->
+    <div class="px-4 py-3 border-b border-neutral-200/60 flex items-center justify-between bg-white/70">
+      <div class="flex items-center gap-2.5">
+        <div class="w-3 h-3 rounded-full bg-gradient-to-tr from-rose-500 via-amber-400 to-indigo-500 animate-pulse"></div>
+        <div>
+          <h2 class="text-xs font-bold text-neutral-900 leading-tight">OYAO! Aura Studio</h2>
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] text-neutral-500 font-mono"><span id="orb-count-badge">3</span> Círculos</span>
+            <span class="text-neutral-300">•</span>
+            <div id="save-indicator" class="text-[9px] text-emerald-600 font-medium flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span>Salvo</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button 
+          id="btn-add-orb-header"
+          class="px-2.5 py-1 rounded-lg bg-neutral-900 text-white hover:bg-neutral-800 transition text-xs font-semibold flex items-center gap-1 shadow-sm active:scale-95"
+          title="Adicionar Novo Círculo"
+        >
+          <span>+</span>
+          <span>Círculo</span>
+        </button>
+
+        <button 
+          id="btn-toggle-minimize" 
+          title="Minimizar Painel"
+          class="p-1.5 rounded-lg hover:bg-neutral-200/60 text-neutral-600 transition text-xs font-mono px-2"
+        >
+          <span id="minimize-icon">−</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Notificação rápida de ação -->
+    <div id="action-toast" class="hidden mx-3 mt-2"></div>
+
+    <!-- Abas Principais -->
+    <div id="panel-tabs" class="flex border-b border-neutral-200/60 bg-neutral-50/80 text-xs font-medium text-neutral-500">
+      <button class="tab-btn flex-1 py-2 text-center border-b-2 border-neutral-900 text-neutral-900 transition" data-tab="tab-orbs">🔮 Círculos</button>
+      <button class="tab-btn flex-1 py-2 text-center border-b-2 border-transparent hover:text-neutral-900 transition" data-tab="tab-wind">💨 Vento & Movimento</button>
+      <button class="tab-btn flex-1 py-2 text-center border-b-2 border-transparent hover:text-neutral-900 transition" data-tab="tab-scene">✨ Cena</button>
+    </div>
+
+    <!-- Corpo com Scroll -->
+    <div id="panel-body" class="p-4 overflow-y-auto custom-scroll space-y-4 text-xs text-neutral-700 flex-1">
+      
+      <!-- ABA 1: CÍRCULOS INFINITOS -->
+      <div id="tab-orbs" class="tab-content space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="font-semibold text-neutral-900 text-[13px]">Camadas de Gradiente</span>
+          <span class="text-[10px] text-neutral-400 font-mono">Tamanhos em % vw</span>
+        </div>
+
+        <div id="orbs-cards-list" class="space-y-2.5">
+          <!-- Gerado dinamicamente -->
+        </div>
+
+        <button 
+          id="btn-add-orb-footer"
+          class="w-full py-2.5 rounded-2xl border-2 border-dashed border-neutral-300 hover:border-neutral-900 text-neutral-700 hover:text-neutral-900 font-semibold text-xs transition flex items-center justify-center gap-1.5 bg-neutral-50/50 hover:bg-white active:scale-[0.99]"
+        >
+          <span class="text-base leading-none">+</span>
+          <span>Adicionar Novo Círculo ao Gradiente</span>
+        </button>
+      </div>
+
+      <!-- ABA 2: VENTO E DINÂMICA -->
+      <div id="tab-wind" class="tab-content hidden space-y-3.5">
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="font-medium text-neutral-700">Intensidade do Vento</label>
+            <span id="val-wind-intensity" class="font-mono text-[11px] font-bold text-neutral-900">2.50x</span>
+          </div>
+          <input id="in-wind-intensity" type="range" min="0" max="6.0" step="0.1" value="2.5" class="w-full" />
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="font-medium text-neutral-600">Velocidade da Brisa (Tempo)</label>
+            <span id="val-wind-speed" class="font-mono text-[11px] text-neutral-900 font-semibold">1.20x</span>
+          </div>
+          <input id="in-wind-speed" type="range" min="0.1" max="4.0" step="0.05" value="1.2" class="w-full" />
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="font-medium text-neutral-600">Direção do Vento (Ângulo)</label>
+            <span id="val-wind-direction" class="font-mono text-[11px] text-neutral-900 font-semibold">45°</span>
+          </div>
+          <input id="in-wind-direction" type="range" min="0" max="360" step="5" value="45" class="w-full" />
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="font-medium text-neutral-600">Turbulência & Caos</label>
+            <span id="val-wind-turbulence" class="font-mono text-[11px] text-neutral-900 font-semibold">1.50x</span>
+          </div>
+          <input id="in-wind-turbulence" type="range" min="0" max="3.5" step="0.1" value="1.5" class="w-full" />
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="font-medium text-neutral-600">Respiração (Pulso de Escala)</label>
+            <span id="val-breath-scale" class="font-mono text-[11px] text-neutral-900 font-semibold">0.08x</span>
+          </div>
+          <input id="in-breath-scale" type="range" min="0" max="0.25" step="0.01" value="0.08" class="w-full" />
+        </div>
+      </div>
+
+      <!-- ABA 3: CENA GLOBAL -->
+      <div id="tab-scene" class="tab-content hidden space-y-3.5">
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="font-medium text-neutral-600">Cor de Fundo da Tela</label>
+            <span id="val-bg-color" class="font-mono text-[11px] text-neutral-500">#ffffff</span>
+          </div>
+          <input id="in-bg-color" type="color" value="#ffffff" class="w-8 h-8 rounded-lg border border-neutral-200 cursor-pointer p-0.5 bg-transparent" />
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="font-medium text-neutral-600">Vidro Fosco Global</label>
+            <span id="val-frosted-blur" class="font-mono text-[11px] text-neutral-900 font-semibold">0px</span>
+          </div>
+          <input id="in-frosted-blur" type="range" min="0" max="60" step="2" value="0" class="w-full" />
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="font-medium text-neutral-600">Granulação Analógica (Noise)</label>
+            <span id="val-noise-opacity" class="font-mono text-[11px] text-neutral-900 font-semibold">0%</span>
+          </div>
+          <input id="in-noise-opacity" type="range" min="0" max="50" step="1" value="0" class="w-full" />
+        </div>
+
+        <div>
+          <label class="font-medium text-neutral-600 block mb-1.5">Blend Mode Geral</label>
+          <select id="in-blend-mode" class="w-full bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 text-xs text-neutral-800 font-medium focus:outline-none">
+            <option value="multiply" selected>multiply (Recomendado)</option>
+            <option value="normal">normal</option>
+            <option value="screen">screen</option>
+            <option value="overlay">overlay</option>
+            <option value="darken">darken</option>
+          </select>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Rodapé de Ações -->
+    <div class="p-3 border-t border-neutral-200/60 bg-white/80 space-y-2">
+      <button 
+        id="btn-toggle-blur"
+        class="w-full py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-900 font-medium text-xs transition flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
+      >
+        <span id="blur-btn-icon" class="text-sm">👁️</span>
+        <span id="blur-btn-text" class="font-semibold">Anular Blurs (Ver Formas e Vetores)</span>
+      </button>
+
+      <div class="grid grid-cols-2 gap-2">
+        <button 
+          id="btn-copy-code"
+          class="w-full py-2 px-3 rounded-xl bg-neutral-900 text-white font-medium text-xs hover:bg-neutral-800 transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+          <span>Copiar Código</span>
+        </button>
+
+        <button 
+          id="btn-reset"
+          class="w-full py-2 px-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium text-xs transition flex items-center justify-center gap-1 active:scale-95"
+        >
+          <span>Restaurar</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Botão Flutuante para reabrir caso minimizado (Visível por padrão) -->
+  <button 
+    id="btn-floating-open"
+    class="fixed bottom-6 right-6 z-50 p-3.5 rounded-full bg-neutral-900 text-white shadow-2xl hover:scale-105 active:scale-95 transition flex items-center gap-2 text-xs font-medium"
+  >
+    <div class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></div>
+    <span>Abrir Painel Studio</span>
+  </button>
+
+  <!-- ========================================================= -->
+  <!-- SCRIPT: MOTOR DE CÍRCULOS INFINITOS E PERSISTÊNCIA LOCAL  -->
+  <!-- ========================================================= -->
+  <script>
+    (function () {
+      const LOCAL_STORAGE_KEY = "oyao_aura_studio_settings_v3";
+      let saveDebounceTimer = null;
+
+      // Utilitários de Cor
+      function hexToRgb(hex) {
+        let c = String(hex).replace("#", "").trim();
+        if (c.length === 3) c = c.split("").map(x => x + x).join("");
+        const num = parseInt(c, 16);
+        if (isNaN(num)) return { r: 255, g: 0, b: 89 };
+        return {
+          r: Math.min(255, Math.max(0, (num >> 16) & 255)),
+          g: Math.min(255, Math.max(0, (num >> 8) & 255)),
+          b: Math.min(255, Math.max(0, num & 255))
+        };
+      }
+
+      function hexToRgba(hex, alpha) {
+        const { r, g, b } = hexToRgb(hex);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+
+      function hslToHex(h, s, l) {
+        l /= 100;
+        const a = (s * Math.min(l, 1 - l)) / 100;
+        const f = (n) => {
+          const k = (n + h / 30) % 12;
+          const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+          return Math.round(255 * color).toString(16).padStart(2, "0");
+        };
+        return `#${f(0)}${f(8)}${f(4)}`;
+      }
+
+      function hexToHue(hex) {
+        const { r: r255, g: g255, b: b255 } = hexToRgb(hex);
+        const r = r255 / 255, g = g255 / 255, b = b255 / 255;
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        let h = 0;
+        if (max !== min) {
+          const d = max - min;
+          switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+          }
+          h /= 6;
+        }
+        return Math.round(h * 360);
+      }
+
+      const vibrantColors = ["#ff0059", "#ff0000", "#ffff00", "#ff00ff", "#00e5ff", "#ff7700", "#7c3aed", "#10b981", "#3b82f6"];
+
+      // Estado Global da Cena e Vento
+      const sceneState = {
+        bgColor: "#ffffff",
+        blendMode: "multiply",
+        frostedBlur: 0,
+        noiseOpacity: 0,
+        windIntensity: 2.5,
+        windSpeed: 1.2,
+        windDirection: 45,
+        windTurbulence: 1.5,
+        breathScale: 0.08
+      };
+
+      // Array inicial com os 3 círculos configurados
+      let orbs = [
+        {
+          id: 1,
+          name: "Círculo 1 (Vermelho Topo)",
+          color: "#ff0000",
+          size: 140,
+          top: 20,
+          left: 50,
+          blur: 8.5,
+          opacity: 1.0,
+          parallaxSpeed: 2.0,
+          ampX: 25,
+          ampY: 35,
+          freq: 1.0,
+          phase: 0.0,
+          fadeEdge: 85
+        },
+        {
+          id: 2,
+          name: "Círculo 2 (Amarelo Centro)",
+          color: "#ffff00",
+          size: 127,
+          top: 42,
+          left: 50,
+          blur: 9.5,
+          opacity: 0.88,
+          parallaxSpeed: 1.5,
+          ampX: 30,
+          ampY: 20,
+          freq: 1.2,
+          phase: 1.5,
+          fadeEdge: 80
+        },
+        {
+          id: 3,
+          name: "Círculo 3 (Magenta Base)",
+          color: "#ff0059",
+          size: 137,
+          top: 104,
+          left: 50,
+          blur: 8.0,
+          opacity: 0.85,
+          parallaxSpeed: 0.9,
+          ampX: 20,
+          ampY: 40,
+          freq: 0.8,
+          phase: 3.0,
+          fadeEdge: 82
+        }
+      ];
+
+      const initialOrbs = JSON.parse(JSON.stringify(orbs));
+      const initialScene = JSON.parse(JSON.stringify(sceneState));
+
+      let nextOrbId = 4;
+      let isBlurDisabled = false;
+      let expandedOrbId = 1;
+
+      // Persistência local imediata e garantida (localStorage do navegador)
+      function triggerAutoSave(immediate = false) {
+        const indicator = document.getElementById("save-indicator");
+        if (indicator) {
+          indicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span><span>Salvando...</span>`;
+          indicator.className = "text-[9px] text-amber-600 font-medium flex items-center gap-1";
+        }
+
+        clearTimeout(saveDebounceTimer);
+        const delay = immediate ? 10 : 250;
+
+        saveDebounceTimer = setTimeout(() => {
+          executeSave();
+        }, delay);
+      }
+
+      function executeSave() {
+        const indicator = document.getElementById("save-indicator");
+        try {
+          const cleanOrbs = orbs.map(o => ({
+            id: Number(o.id),
+            name: String(o.name || ''),
+            color: String(o.color || '#ff0000'),
+            size: Number(o.size || 80),
+            top: Number(o.top || 0),
+            left: Number(o.left || 50),
+            blur: Number(o.blur || 8),
+            opacity: Number(o.opacity || 1),
+            parallaxSpeed: Number(o.parallaxSpeed || 1),
+            ampX: Number(o.ampX || 20),
+            ampY: Number(o.ampY || 20),
+            freq: Number(o.freq || 1),
+            phase: Number(o.phase || 0),
+            fadeEdge: Number(o.fadeEdge || 85)
+          }));
+
+          const cleanScene = {
+            bgColor: String(sceneState.bgColor || '#ffffff'),
+            blendMode: String(sceneState.blendMode || 'multiply'),
+            frostedBlur: Number(sceneState.frostedBlur || 0),
+            noiseOpacity: Number(sceneState.noiseOpacity || 0),
+            windIntensity: Number(sceneState.windIntensity || 2.5),
+            windSpeed: Number(sceneState.windSpeed || 1.2),
+            windDirection: Number(sceneState.windDirection || 45),
+            windTurbulence: Number(sceneState.windTurbulence || 1.5),
+            breathScale: Number(sceneState.breathScale || 0.08)
+          };
+
+          const payload = {
+            sceneState: cleanScene,
+            orbs: cleanOrbs,
+            isBlurDisabled: Boolean(isBlurDisabled),
+            updatedAt: Date.now()
+          };
+
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
+
+          if (indicator) {
+            indicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span><span>Salvo</span>`;
+            indicator.className = "text-[9px] text-emerald-600 font-medium flex items-center gap-1";
+          }
+        } catch (err) {
+          console.warn("Erro ao salvar no localStorage:", err);
+          if (indicator) {
+            indicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span><span>Salvo</span>`;
+            indicator.className = "text-[9px] text-emerald-600 font-medium flex items-center gap-1";
+          }
+        }
+      }
+
+      function loadPersistedState() {
+        try {
+          const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (!raw) return;
+          const data = JSON.parse(raw);
+
+          if (data.sceneState && typeof data.sceneState === 'object') {
+            Object.assign(sceneState, data.sceneState);
+          }
+          if (Array.isArray(data.orbs) && data.orbs.length > 0) {
+            orbs = data.orbs;
+            nextOrbId = Math.max(...orbs.map(o => Number(o.id) || 1), 0) + 1;
+            expandedOrbId = orbs[0].id;
+          }
+          if (typeof data.isBlurDisabled === 'boolean') {
+            isBlurDisabled = data.isBlurDisabled;
+          }
+
+          syncGlobalInputs();
+          syncRenderLayerDOM();
+          renderOrbsCards();
+        } catch (err) {
+          console.warn("Erro ao restaurar do localStorage:", err);
+        }
+      }
+
+      function syncGlobalInputs() {
+        const setVal = (id, val) => {
+          const el = document.getElementById(id);
+          if (el) el.value = val;
+        };
+        const setText = (id, txt) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = txt;
+        };
+
+        setVal("in-wind-intensity", sceneState.windIntensity);
+        setText("val-wind-intensity", `${sceneState.windIntensity.toFixed(2)}x`);
+
+        setVal("in-wind-speed", sceneState.windSpeed);
+        setText("val-wind-speed", `${sceneState.windSpeed.toFixed(2)}x`);
+
+        setVal("in-wind-direction", sceneState.windDirection);
+        setText("val-wind-direction", `${sceneState.windDirection}°`);
+
+        setVal("in-wind-turbulence", sceneState.windTurbulence);
+        setText("val-wind-turbulence", `${sceneState.windTurbulence.toFixed(2)}x`);
+
+        setVal("in-breath-scale", sceneState.breathScale);
+        setText("val-breath-scale", `${sceneState.breathScale.toFixed(2)}x`);
+
+        setVal("in-frosted-blur", sceneState.frostedBlur);
+        setText("val-frosted-blur", `${sceneState.frostedBlur}px`);
+
+        setVal("in-noise-opacity", sceneState.noiseOpacity);
+        setText("val-noise-opacity", `${sceneState.noiseOpacity}%`);
+
+        setVal("in-bg-color", sceneState.bgColor);
+        setText("val-bg-color", sceneState.bgColor);
+
+        setVal("in-blend-mode", sceneState.blendMode);
+      }
+
+      const bgContainer = document.getElementById("aura-canvas-container");
+      const orbsRenderLayer = document.getElementById("orbs-render-layer");
+      const frostedLayer = document.getElementById("frosted-layer");
+      const noiseLayer = document.getElementById("noise-layer");
+      const orbsCardsList = document.getElementById("orbs-cards-list");
+      const orbCountBadge = document.getElementById("orb-count-badge");
+      const actionToast = document.getElementById("action-toast");
+      const heroLogoInner = document.getElementById("hero-logo-inner");
+      const heroLogoContainer = document.getElementById("hero-logo-container");
+
+      let currentScrollY = 0;
+      let targetScrollY = 0;
+      let time = 0;
+
+      function syncRenderLayerDOM() {
+        if (!orbsRenderLayer) return;
+        orbsRenderLayer.innerHTML = "";
+        orbs.forEach((orb) => {
+          const div = document.createElement("div");
+          div.id = `orb-el-${orb.id}`;
+          div.className = "aura-orb-element";
+          orbsRenderLayer.appendChild(div);
+        });
+        applyStyles();
+      }
+
+      function showToast(message, isError = false) {
+        if (!actionToast) return;
+        actionToast.textContent = message;
+        actionToast.className = isError 
+          ? "text-center text-[11px] py-1.5 px-2 rounded-lg border bg-rose-50 border-rose-200 text-rose-700 transition-all block"
+          : "text-center text-[11px] py-1.5 px-2 rounded-lg border bg-emerald-50 border-emerald-200 text-emerald-700 transition-all block";
+        
+        setTimeout(() => {
+          actionToast.className = "hidden";
+        }, 2500);
+      }
+
+      function applyStyles() {
+        if (!bgContainer) return;
+        document.body.style.backgroundColor = sceneState.bgColor;
+        bgContainer.style.backgroundColor = sceneState.bgColor;
+
+        if (isBlurDisabled) {
+          bgContainer.classList.add("no-blur-mode");
+        } else {
+          bgContainer.classList.remove("no-blur-mode");
+        }
+
+        orbs.forEach((orb) => {
+          const el = document.getElementById(`orb-el-${orb.id}`);
+          if (!el) return;
+
+          el.style.width = `${orb.size}vw`;
+          el.style.height = `${orb.size}vw`;
+          el.style.marginLeft = `-${orb.size / 2}vw`;
+          el.style.marginTop = `-${orb.size / 2}vw`;
+          el.style.top = `${orb.top}%`;
+          el.style.left = `${orb.left}%`;
+          el.style.filter = isBlurDisabled ? "none" : `blur(${orb.blur}vw)`;
+          el.style.mixBlendMode = sceneState.blendMode;
+
+          if (isBlurDisabled) {
+            el.style.background = orb.color;
+          } else {
+            const edge = orb.fadeEdge || 85;
+            el.style.background = `radial-gradient(circle at center, ${orb.color} 0%, ${hexToRgba(orb.color, 0.75)} 35%, ${hexToRgba(orb.color, 0.4)} 65%, rgba(255,255,255,0) ${edge}%)`;
+          }
+        });
+
+        if (frostedLayer) {
+          const currentFrosted = isBlurDisabled ? 0 : sceneState.frostedBlur;
+          frostedLayer.style.backdropFilter = currentFrosted > 0 ? `blur(${currentFrosted}px)` : "none";
+          frostedLayer.style.webkitBackdropFilter = currentFrosted > 0 ? `blur(${currentFrosted}px)` : "none";
+        }
+        if (noiseLayer) {
+          noiseLayer.style.opacity = isBlurDisabled ? 0 : sceneState.noiseOpacity / 100;
+        }
+        if (orbCountBadge) {
+          orbCountBadge.textContent = orbs.length;
+        }
+      }
+
+      function loop() {
+        currentScrollY += (targetScrollY - currentScrollY) * 0.08;
+
+        const maxScroll = document.documentElement.scrollHeight - window.innerHeight || 1;
+        const progress = Math.min(Math.max(currentScrollY / maxScroll, 0), 1);
+
+        time += 0.015 * sceneState.windSpeed;
+
+        const rad = (sceneState.windDirection * Math.PI) / 180;
+        const windDirX = Math.cos(rad);
+        const windDirY = Math.sin(rad);
+        const screenFactor = Math.max(0.4, Math.min(window.innerWidth / 1200, 1.3));
+
+        orbs.forEach((orb) => {
+          const el = document.getElementById(`orb-el-${orb.id}`);
+          if (!el) return;
+
+          const t = time * orb.freq + orb.phase;
+          const turb = (Math.sin(t * 2.3) * Math.cos(t * 1.7)) * (18 * sceneState.windTurbulence * screenFactor);
+
+          const windMotionX = (Math.sin(t) * orb.ampX * screenFactor + turb + windDirX * 25 * screenFactor) * (sceneState.windIntensity * 0.4);
+          const windMotionY = (Math.cos(t * 0.9) * orb.ampY * screenFactor + turb * 0.7 + windDirY * 25 * screenFactor) * (sceneState.windIntensity * 0.4);
+
+          const pulse = 1.0 + Math.sin(t * 1.2) * sceneState.breathScale;
+          const scrollScale = 1.0 + (progress * 0.2);
+          const totalScale = pulse * scrollScale;
+
+          const scrollOffsetY = -(currentScrollY * orb.parallaxSpeed);
+
+          const finalX = windMotionX;
+          const finalY = scrollOffsetY + windMotionY;
+
+          el.style.transform = `translate3d(${finalX}px, ${finalY}px, 0px) scale(${totalScale})`;
+          el.style.opacity = isBlurDisabled ? 1.0 : orb.opacity;
+        });
+
+        requestAnimationFrame(loop);
+      }
+
+      function renderOrbsCards() {
+        if (!orbsCardsList) return;
+        orbsCardsList.innerHTML = "";
+
+        orbs.forEach((orb, index) => {
+          const isExpanded = orb.id === expandedOrbId;
+          const card = document.createElement("div");
+          card.id = `orb-card-${orb.id}`;
+          card.className = `border rounded-2xl transition-all duration-200 overflow-hidden ${isExpanded ? "border-neutral-900/30 bg-white shadow-md ring-1 ring-neutral-900/10" : "border-neutral-200/70 bg-neutral-50/60 hover:bg-neutral-50"}`;
+
+          const header = document.createElement("div");
+          header.className = "px-3.5 py-2.5 flex items-center justify-between cursor-pointer select-none";
+          header.innerHTML = `
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span id="header-dot-${orb.id}" class="w-4 h-4 rounded-full border border-black/15 shadow-sm shrink-0" style="background-color: ${orb.color}"></span>
+              <span id="header-name-${orb.id}" class="font-semibold text-neutral-800 text-xs truncate">${orb.name || `Círculo ${index + 1}`}</span>
+              <span class="text-[9px] font-mono text-neutral-400">#${orb.id}</span>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button class="btn-dup p-1 hover:bg-neutral-200/60 rounded text-neutral-500 text-[11px]" title="Duplicar Círculo" data-id="${orb.id}">📋</button>
+              <button class="btn-del p-1 hover:bg-rose-100 hover:text-rose-600 rounded text-neutral-400 text-[11px]" title="Excluir Círculo" data-id="${orb.id}">🗑️</button>
+              <span class="text-xs text-neutral-400 ml-1 transition-transform ${isExpanded ? 'rotate-180' : ''}">▼</span>
+            </div>
+          `;
+
+          header.addEventListener("click", (e) => {
+            if (e.target.closest("button")) return;
+            expandedOrbId = isExpanded ? null : orb.id;
+            renderOrbsCards();
+          });
+
+          card.appendChild(header);
+
+          if (isExpanded) {
+            const body = document.createElement("div");
+            body.className = "p-3.5 pt-1 border-t border-neutral-100 space-y-3 text-xs text-neutral-600 bg-white";
+            const hue = hexToHue(orb.color);
+
+            body.innerHTML = `
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="font-medium text-[11px] text-neutral-600 block mb-1">Nome da Camada</label>
+                  <input type="text" value="${orb.name}" class="orb-name-input w-full bg-neutral-50 border border-neutral-200 rounded-lg px-2 py-1 text-xs text-neutral-800 focus:outline-none focus:ring-1 focus:ring-neutral-900" data-id="${orb.id}" />
+                </div>
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <label class="font-medium text-[11px] text-neutral-600">Cor Hex</label>
+                    <span id="hex-label-${orb.id}" class="font-mono text-[10px] text-neutral-500">${orb.color}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <input id="color-picker-${orb.id}" type="color" value="${orb.color}" class="orb-color-picker w-7 h-7 rounded-lg border border-neutral-200 cursor-pointer p-0.5 bg-white shrink-0" data-id="${orb.id}" />
+                    <input id="hue-slider-${orb.id}" type="range" min="0" max="360" step="1" value="${hue}" class="orb-hue-slider w-full hue-slider" data-id="${orb.id}" title="Matiz" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2.5">
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <span class="font-medium text-[11px]">Tamanho (% tela)</span>
+                    <span class="font-mono text-[10px] text-neutral-900 font-bold">${Math.round(orb.size)}% vw</span>
+                  </div>
+                  <input type="range" min="20" max="220" step="1" value="${orb.size}" class="orb-input w-full" data-prop="size" data-id="${orb.id}" />
+                </div>
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <span class="font-medium text-[11px]">Posição Topo</span>
+                    <span class="font-mono text-[10px] text-neutral-900 font-bold">${orb.top}%</span>
+                  </div>
+                  <input type="range" min="-120" max="350" step="1" value="${orb.top}" class="orb-input w-full" data-prop="top" data-id="${orb.id}" />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2.5">
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <span class="font-medium text-[11px]">Posição Horizontal</span>
+                    <span class="font-mono text-[10px] text-neutral-900 font-bold">${orb.left}%</span>
+                  </div>
+                  <input type="range" min="-50" max="150" step="1" value="${orb.left}" class="orb-input w-full" data-prop="left" data-id="${orb.id}" />
+                </div>
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <span class="font-medium text-[11px]">Velocidade Scroll</span>
+                    <span class="font-mono text-[10px] text-neutral-900 font-bold">${orb.parallaxSpeed.toFixed(2)}x</span>
+                  </div>
+                  <input type="range" min="0" max="4.0" step="0.05" value="${orb.parallaxSpeed}" class="orb-input w-full" data-prop="parallaxSpeed" data-id="${orb.id}" />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2.5">
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <span class="font-medium text-[11px]">Blur Fluido (% tela)</span>
+                    <span class="font-mono text-[10px] text-neutral-900 font-bold">${orb.blur.toFixed(1)}% vw</span>
+                  </div>
+                  <input type="range" min="1" max="28" step="0.5" value="${orb.blur}" class="orb-input w-full" data-prop="blur" data-id="${orb.id}" />
+                </div>
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <span class="font-medium text-[11px]">Opacidade</span>
+                    <span class="font-mono text-[10px] text-neutral-900 font-bold">${orb.opacity.toFixed(2)}</span>
+                  </div>
+                  <input type="range" min="0" max="1" step="0.02" value="${orb.opacity}" class="orb-input w-full" data-prop="opacity" data-id="${orb.id}" />
+                </div>
+              </div>
+
+              <div class="bg-neutral-50 p-2.5 rounded-xl border border-neutral-200/60 space-y-2">
+                <div class="flex justify-between items-center">
+                  <span class="font-medium text-[11px] text-neutral-700">Filtro de Borda Radial</span>
+                  <span class="font-mono text-[10px] text-neutral-900 font-bold">${orb.fadeEdge || 85}%</span>
+                </div>
+                <input type="range" min="30" max="100" step="1" value="${orb.fadeEdge || 85}" class="orb-input w-full" data-prop="fadeEdge" data-id="${orb.id}" />
+
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                  <div>
+                    <div class="flex justify-between text-[10px] text-neutral-500 mb-0.5">
+                      <span>Vento X</span>
+                      <span>${orb.ampX}px</span>
+                    </div>
+                    <input type="range" min="0" max="100" step="2" value="${orb.ampX}" class="orb-input w-full" data-prop="ampX" data-id="${orb.id}" />
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-[10px] text-neutral-500 mb-0.5">
+                      <span>Vento Y</span>
+                      <span>${orb.ampY}px</span>
+                    </div>
+                    <input type="range" min="0" max="100" step="2" value="${orb.ampY}" class="orb-input w-full" data-prop="ampY" data-id="${orb.id}" />
+                  </div>
+                </div>
+              </div>
+            `;
+
+            card.appendChild(body);
+          }
+
+          orbsCardsList.appendChild(card);
+        });
+
+        bindCardEvents();
+      }
+
+      function bindCardEvents() {
+        document.querySelectorAll(".orb-input").forEach((input) => {
+          const id = parseInt(input.getAttribute("data-id"), 10);
+          const prop = input.getAttribute("data-prop");
+
+          const handler = (e) => {
+            const orb = orbs.find((o) => o.id === id);
+            if (!orb) return;
+            orb[prop] = parseFloat(e.target.value);
+            applyStyles();
+            triggerAutoSave(e.type === 'change');
+            
+            const label = input.parentElement.querySelector("span.font-bold");
+            if (label) {
+              let formattedVal = orb[prop];
+              let suffix = "";
+              if (prop === "size") {
+                suffix = "% vw";
+                formattedVal = Math.round(orb[prop]);
+              } else if (prop === "blur") {
+                suffix = "% vw";
+                formattedVal = orb[prop].toFixed(1);
+              } else if (prop === "top" || prop === "left" || prop === "fadeEdge") {
+                suffix = "%";
+              } else if (prop === "ampX" || prop === "ampY") {
+                suffix = "px";
+              } else if (prop === "parallaxSpeed") {
+                suffix = "x";
+                formattedVal = orb[prop].toFixed(2);
+              } else if (prop === "opacity") {
+                formattedVal = orb[prop].toFixed(2);
+              }
+              label.textContent = `${formattedVal}${suffix}`;
+            }
+          };
+
+          input.addEventListener("input", handler);
+          input.addEventListener("change", handler);
+        });
+
+        document.querySelectorAll(".orb-name-input").forEach((input) => {
+          const id = parseInt(input.getAttribute("data-id"), 10);
+          input.addEventListener("input", (e) => {
+            const orb = orbs.find((o) => o.id === id);
+            if (orb) {
+              orb.name = e.target.value;
+              const headerTitle = document.getElementById(`header-name-${id}`);
+              if (headerTitle) headerTitle.textContent = orb.name || `Círculo`;
+              triggerAutoSave();
+            }
+          });
+        });
+
+        document.querySelectorAll(".orb-color-picker").forEach((picker) => {
+          const id = parseInt(picker.getAttribute("data-id"), 10);
+          picker.addEventListener("input", (e) => {
+            const orb = orbs.find((o) => o.id === id);
+            if (!orb) return;
+            orb.color = e.target.value;
+
+            const dot = document.getElementById(`header-dot-${id}`);
+            if (dot) dot.style.backgroundColor = orb.color;
+            const hexSpan = document.getElementById(`hex-label-${id}`);
+            if (hexSpan) hexSpan.textContent = orb.color;
+            const hueInput = document.getElementById(`hue-slider-${id}`);
+            if (hueInput) hueInput.value = hexToHue(orb.color);
+
+            applyStyles();
+            triggerAutoSave();
+          });
+        });
+
+        document.querySelectorAll(".orb-hue-slider").forEach((hueSlider) => {
+          const id = parseInt(hueSlider.getAttribute("data-id"), 10);
+          hueSlider.addEventListener("input", (e) => {
+            const orb = orbs.find((o) => o.id === id);
+            if (!orb) return;
+            const hue = parseInt(e.target.value, 10);
+            orb.color = hslToHex(hue, 100, 50);
+
+            const dot = document.getElementById(`header-dot-${id}`);
+            if (dot) dot.style.backgroundColor = orb.color;
+            const hexSpan = document.getElementById(`hex-label-${id}`);
+            if (hexSpan) hexSpan.textContent = orb.color;
+            const colorInput = document.getElementById(`color-picker-${id}`);
+            if (colorInput) colorInput.value = orb.color;
+
+            applyStyles();
+            triggerAutoSave();
+          });
+        });
+
+        document.querySelectorAll(".btn-dup").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const id = parseInt(btn.getAttribute("data-id"), 10);
+            duplicateOrb(id);
+          });
+        });
+
+        document.querySelectorAll(".btn-del").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const id = parseInt(btn.getAttribute("data-id"), 10);
+            deleteOrb(id);
+          });
+        });
+      }
+
+      function addNewOrb() {
+        const randomColor = vibrantColors[Math.floor(Math.random() * vibrantColors.length)];
+        const newId = nextOrbId++;
+        const lastOrb = orbs[orbs.length - 1];
+        const newTop = lastOrb ? lastOrb.top + 35 : 50;
+
+        const newOrb = {
+          id: newId,
+          name: `Círculo ${orbs.length + 1}`,
+          color: randomColor,
+          size: 90,
+          top: newTop,
+          left: 50,
+          blur: 8.5,
+          opacity: 0.9,
+          parallaxSpeed: 1.2,
+          ampX: 25,
+          ampY: 30,
+          freq: 1.0,
+          phase: Math.random() * Math.PI * 2,
+          fadeEdge: 85
+        };
+
+        orbs.push(newOrb);
+        expandedOrbId = newId;
+        syncRenderLayerDOM();
+        renderOrbsCards();
+        triggerAutoSave(true);
+        showToast("Novo círculo adicionado e salvo!");
+      }
+
+      function duplicateOrb(id) {
+        const original = orbs.find((o) => o.id === id);
+        if (!original) return;
+
+        const newId = nextOrbId++;
+        const duplicate = {
+          ...JSON.parse(JSON.stringify(original)),
+          id: newId,
+          name: `${original.name} (Cópia)`,
+          top: original.top + 15,
+          phase: original.phase + 1.0
+        };
+
+        const index = orbs.findIndex((o) => o.id === id);
+        orbs.splice(index + 1, 0, duplicate);
+        expandedOrbId = newId;
+        syncRenderLayerDOM();
+        renderOrbsCards();
+        triggerAutoSave(true);
+        showToast("Círculo duplicado e salvo!");
+      }
+
+      function deleteOrb(id) {
+        if (orbs.length <= 1) {
+          showToast("Mantenha pelo menos 1 círculo ativo.", true);
+          return;
+        }
+        orbs = orbs.filter((o) => o.id !== id);
+        if (expandedOrbId === id) {
+          expandedOrbId = orbs[0]?.id || null;
+        }
+        syncRenderLayerDOM();
+        renderOrbsCards();
+        triggerAutoSave(true);
+        showToast("Círculo removido e salvo.");
+      }
+
+      function bindGlobalControls() {
+        const windInputs = [
+          { id: "in-wind-intensity", key: "windIntensity", valId: "val-wind-intensity", suffix: "x" },
+          { id: "in-wind-speed", key: "windSpeed", valId: "val-wind-speed", suffix: "x" },
+          { id: "in-wind-direction", key: "windDirection", valId: "val-wind-direction", suffix: "°" },
+          { id: "in-wind-turbulence", key: "windTurbulence", valId: "val-wind-turbulence", suffix: "x" },
+          { id: "in-breath-scale", key: "breathScale", valId: "val-breath-scale", suffix: "x" },
+          { id: "in-frosted-blur", key: "frostedBlur", valId: "val-frosted-blur", suffix: "px" },
+          { id: "in-noise-opacity", key: "noiseOpacity", valId: "val-noise-opacity", suffix: "%" }
+        ];
+
+        windInputs.forEach(({ id, key, valId, suffix }) => {
+          const input = document.getElementById(id);
+          const valEl = document.getElementById(valId);
+          if (!input) return;
+
+          const update = (e) => {
+            const val = parseFloat(e.target.value);
+            sceneState[key] = val;
+            if (valEl) {
+              valEl.textContent = (suffix === "x" && key !== "breathScale" ? val.toFixed(2) : (key === "breathScale" ? val.toFixed(2) : val)) + suffix;
+            }
+            applyStyles();
+            triggerAutoSave(e.type === 'change');
+          };
+
+          input.addEventListener("input", update);
+          input.addEventListener("change", update);
+        });
+
+        const bgInput = document.getElementById("in-bg-color");
+        const bgVal = document.getElementById("val-bg-color");
+        if (bgInput) {
+          bgInput.addEventListener("input", (e) => {
+            sceneState.bgColor = e.target.value;
+            if (bgVal) bgVal.textContent = e.target.value;
+            applyStyles();
+            triggerAutoSave();
+          });
+        }
+
+        const blendSelect = document.getElementById("in-blend-mode");
+        if (blendSelect) {
+          blendSelect.addEventListener("change", (e) => {
+            sceneState.blendMode = e.target.value;
+            applyStyles();
+            triggerAutoSave(true);
+          });
+        }
+
+        document.getElementById("btn-add-orb-header")?.addEventListener("click", addNewOrb);
+        document.getElementById("btn-add-orb-footer")?.addEventListener("click", addNewOrb);
+      }
+
+      function setupTabs() {
+        const tabBtns = document.querySelectorAll(".tab-btn");
+        const tabContents = document.querySelectorAll(".tab-content");
+
+        tabBtns.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const target = btn.getAttribute("data-tab");
+
+            tabBtns.forEach((b) => {
+              b.classList.remove("border-neutral-900", "text-neutral-900");
+              b.classList.add("border-transparent", "text-neutral-500");
+            });
+            btn.classList.add("border-neutral-900", "text-neutral-900");
+            btn.classList.remove("border-transparent", "text-neutral-500");
+
+            tabContents.forEach((c) => {
+              if (c.id === target) {
+                c.classList.remove("hidden");
+              } else {
+                c.classList.add("hidden");
+              }
+            });
+          });
+        });
+      }
+
+      function setupMinimize() {
+        const panel = document.getElementById("control-panel");
+        const openBtn = document.getElementById("btn-floating-open");
+        const toggleBtn = document.getElementById("btn-toggle-minimize");
+
+        if (toggleBtn && panel && openBtn) {
+          toggleBtn.addEventListener("click", () => {
+            panel.classList.add("hidden");
+            openBtn.classList.remove("hidden");
+          });
+
+          openBtn.addEventListener("click", () => {
+            panel.classList.remove("hidden");
+            openBtn.classList.add("hidden");
+          });
+        }
+      }
+
+      function setupBlurToggle() {
+        const btnToggleBlur = document.getElementById("btn-toggle-blur");
+        const btnIcon = document.getElementById("blur-btn-icon");
+        const btnText = document.getElementById("blur-btn-text");
+        if (!btnToggleBlur) return;
+
+        btnToggleBlur.addEventListener("click", () => {
+          isBlurDisabled = !isBlurDisabled;
+
+          if (isBlurDisabled) {
+            btnIcon.textContent = "✨";
+            btnText.textContent = "Reativar Blurs Difusos";
+            btnToggleBlur.className = "w-full py-2 px-3 rounded-xl bg-amber-500 text-white font-medium text-xs transition flex items-center justify-center gap-1.5 active:scale-95 shadow-md";
+          } else {
+            btnIcon.textContent = "👁️";
+            btnText.textContent = "Anular Blurs (Ver Formas e Vetores)";
+            btnToggleBlur.className = "w-full py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-900 font-medium text-xs transition flex items-center justify-center gap-1.5 active:scale-95 shadow-sm";
+          }
+
+          applyStyles();
+          triggerAutoSave(true);
+        });
+      }
+
+      function setupExport() {
+        const copyBtn = document.getElementById("btn-copy-code");
+        const resetBtn = document.getElementById("btn-reset");
+
+        if (copyBtn) {
+          copyBtn.addEventListener("click", () => {
+            let cssVars = `:root {\n  --bg-color: ${sceneState.bgColor};\n  --blend-mode: ${sceneState.blendMode};\n  --frosted-blur: ${sceneState.frostedBlur}px;\n  --noise-opacity: ${sceneState.noiseOpacity / 100};\n  --wind-intensity: ${sceneState.windIntensity};\n  --wind-speed: ${sceneState.windSpeed};\n  --wind-direction: ${sceneState.windDirection}deg;\n\n`;
+
+            orbs.forEach((orb, i) => {
+              cssVars += `  /* ${orb.name || `Círculo ${i + 1}`} */\n`;
+              cssVars += `  --orb-${orb.id}-color: ${orb.color};\n`;
+              cssVars += `  --orb-${orb.id}-size: ${orb.size}vw;\n`;
+              cssVars += `  --orb-${orb.id}-top: ${orb.top}%;\n`;
+              cssVars += `  --orb-${orb.id}-left: ${orb.left}%;\n`;
+              cssVars += `  --orb-${orb.id}-blur: ${orb.blur}vw;\n`;
+              cssVars += `  --orb-${orb.id}-opacity: ${orb.opacity};\n`;
+              cssVars += `  --orb-${orb.id}-parallax-speed: ${orb.parallaxSpeed};\n\n`;
+            });
+            cssVars += `}`;
+
+            const exportData = {
+              brand: {
+                name: "OYAO!",
+                font: "lacabeza"
+              },
+              scene: sceneState,
+              orbs: orbs
+            };
+
+            const exportText = `/* ==============================================
+   OYAO! AURA GRADIENT INFINITE BACKGROUND
+   Font: Lacabeza
+   ============================================== */
+
+/* CSS Variables */
+${cssVars}
+
+/* Background Configuration */
+const oyaoBackgroundConfig = ${JSON.stringify(exportData, null, 2)};`;
+
+            const textarea = document.createElement("textarea");
+            textarea.value = exportText;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+              document.execCommand("copy");
+              showToast("✓ Configuração CSS e JS copiada com sucesso!");
+            } catch (err) {
+              showToast("Erro ao copiar", true);
+            }
+            document.body.removeChild(textarea);
+          });
+        }
+
+        if (resetBtn) {
+          resetBtn.addEventListener("click", () => {
+            orbs = JSON.parse(JSON.stringify(initialOrbs));
+            Object.assign(sceneState, initialScene);
+            nextOrbId = orbs.length + 1;
+            expandedOrbId = orbs[0].id;
+
+            if (isBlurDisabled) {
+              isBlurDisabled = false;
+              document.getElementById("blur-btn-icon").textContent = "👁️";
+              document.getElementById("blur-btn-text").textContent = "Anular Blurs (Ver Formas e Vetores)";
+              document.getElementById("btn-toggle-blur").className = "w-full py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-900 font-medium text-xs transition flex items-center justify-center gap-1.5 active:scale-95 shadow-sm";
+            }
+
+            syncGlobalInputs();
+            syncRenderLayerDOM();
+            renderOrbsCards();
+            triggerAutoSave(true);
+            showToast("Configurações restauradas!");
+          });
+        }
+      }
+
+      window.addEventListener("scroll", () => {
+        targetScrollY = window.pageYOffset || document.documentElement.scrollTop;
+      }, { passive: true });
+
+      window.onload = function () {
+        targetScrollY = window.pageYOffset || document.documentElement.scrollTop;
+        currentScrollY = targetScrollY;
+
+        // Carrega as configurações salvas no localStorage
+        loadPersistedState();
+
+        syncRenderLayerDOM();
+        renderOrbsCards();
+        bindGlobalControls();
+        setupTabs();
+        setupMinimize();
+        setupBlurToggle();
+        setupExport();
+
+        loop();
+      };
+    })();
+  </script>
+</body>
+</html>
