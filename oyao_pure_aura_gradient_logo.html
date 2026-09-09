@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OYAO! - Aura Gradient</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: #ffffff;
+      color: #1a1a1a;
+      overflow-x: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* Canvas Fixo para renderização do degradê fluido */
+    #aura-canvas-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 0;
+      background: #ffffff;
+    }
+
+    /* Esferas de cor com aceleração de hardware */
+    .aura-orb-element {
+      position: absolute;
+      border-radius: 50%;
+      will-change: transform, opacity;
+      transform: translate3d(0, 0, 0);
+      transform-origin: center center;
+      pointer-events: none;
+    }
+
+    /* Logo OYAO! em corte de papel branco puro - zero sombras ou filtros */
+    .logo-papercut-flat {
+      filter: none !important;
+      box-shadow: none !important;
+      text-shadow: none !important;
+      will-change: transform;
+      transform-origin: center center;
+    }
+
+    .logo-papercut-flat svg,
+    .logo-papercut-flat path,
+    .logo-papercut-flat polygon {
+      filter: none !important;
+    }
+
+    /* Textura de granulação analógica sutil opcional */
+    .noise-overlay {
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      pointer-events: none;
+      background-repeat: repeat;
+      mix-blend-mode: overlay;
+      opacity: 0;
+    }
+  </style>
+</head>
+
+<body class="relative selection:bg-rose-500 selection:text-white">
+
+  <!-- ========================================================= -->
+  <!-- CANVAS FIXO DO GRADIENTE VIVO MULTICAMADA                 -->
+  <!-- ========================================================= -->
+  <div id="aura-canvas-container" aria-hidden="true">
+    <!-- Camada onde os 5 círculos fluidos são renderizados -->
+    <div id="orbs-render-layer"></div>
+    <div id="frosted-layer" class="absolute inset-0 pointer-events-none"></div>
+    <div id="noise-layer" class="noise-overlay" style="background-image: url('data:image/svg+xml;utf8,<svg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22><filter id=%22noise%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.8%22 numOctaves=%223%22 stitchTiles=%22stitch%22/></filter><rect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noise)%22 opacity=%221%22/></svg>');"></div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- LOGO OYAO! CENTRALIZADA EM BRANCO PURO (SEM SOMBRAS)      -->
+  <!-- ========================================================= -->
+  <div 
+    id="hero-logo-container" 
+    class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 w-[88vw] max-w-[540px] sm:max-w-[620px] pointer-events-none flex items-center justify-center select-none"
+  >
+    <div id="hero-logo-inner" class="logo-papercut-flat w-full flex items-center justify-center">
+      <!-- SVG com os recortes facetados geométricos da tipografia Lacabeza -->
+      <svg 
+        id="hero-logo-svg" 
+        viewBox="0 0 920 340" 
+        class="w-full h-auto max-h-[190px] sm:max-h-[250px]" 
+        aria-label="Logo OYAO!"
+      >
+        <!-- Letra 'O' inicial (Recorte facetado estilo colagem) -->
+        <polygon 
+          points="95,190 115,130 160,88 235,82 290,128 305,188 288,252 232,295 158,296 108,255 92,205" 
+          fill="#ffffff" 
+        />
+        
+        <!-- Letra 'Y' (Braços angulares e haste esbelta) -->
+        <polygon 
+          points="282,78 328,78 368,172 414,70 452,68 392,205 388,300 352,300 354,208" 
+          fill="#ffffff" 
+        />
+        
+        <!-- Letra 'A' (Corpo recortado com contraforma interna) -->
+        <path 
+          fill="#ffffff" 
+          fill-rule="evenodd" 
+          d="M440,302 L504,78 L584,80 L642,302 L582,302 L564,204 L508,204 L490,302 Z M518,154 L554,154 L548,116 L524,116 Z" 
+        />
+        
+        <!-- Letra 'O' secundária (Segundo anel facetado) -->
+        <polygon 
+          points="652,152 682,92 748,78 808,115 822,174 804,242 752,282 688,278 650,225 644,170" 
+          fill="#ffffff" 
+        />
+        
+        <!-- Ponto de Exclamação '!' (Haste e ponto destacados) -->
+        <polygon 
+          points="854,58 888,64 880,248 858,244" 
+          fill="#ffffff" 
+        />
+        <polygon 
+          points="856,275 882,270 894,295 882,322 858,324 848,300" 
+          fill="#ffffff" 
+        />
+      </svg>
+    </div>
+  </div>
+
+  <!-- Trilho silencioso para navegação contínua no degradê ao rolar -->
+  <main class="relative z-10 w-full min-h-[500vh] pointer-events-none" aria-hidden="true"></main>
+
+  <script>
+    (function () {
+      // Utilitários de conversão de cor
+      function hexToRgb(hex) {
+        let c = String(hex).replace("#", "").trim();
+        if (c.length === 3) c = c.split("").map(x => x + x).join("");
+        const num = parseInt(c, 16);
+        if (isNaN(num)) return { r: 255, g: 0, b: 89 };
+        return {
+          r: Math.min(255, Math.max(0, (num >> 16) & 255)),
+          g: Math.min(255, Math.max(0, (num >> 8) & 255)),
+          b: Math.min(255, Math.max(0, num & 255))
+        };
+      }
+
+      function hexToRgba(hex, alpha) {
+        const { r, g, b } = hexToRgb(hex);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+
+      const sceneConfig = {
+        bgColor: "#ffffff",
+        blendMode: "multiply",
+        windIntensity: 2.5,
+        windSpeed: 1.2,
+        windDirection: 45,
+        windTurbulence: 1.5,
+        breathScale: 0.08
+      };
+
+      // Configuração exata das 5 camadas
+      const orbs = [
+        {
+          id: 1,
+          name: "Círculo 1 (Vermelho Topo)",
+          color: "#ff0000",
+          size: 220,
+          top: 20,
+          left: 50,
+          blur: 28,
+          opacity: 0.1,
+          parallaxSpeed: 2.0,
+          ampX: 20,
+          ampY: 35,
+          freq: 1.0,
+          phase: 0.0,
+          fadeEdge: 32
+        },
+        {
+          id: 2,
+          name: "Círculo 2 (Amarelo Centro)",
+          color: "#ffff00",
+          size: 220,
+          top: 42,
+          left: 50,
+          blur: 28,
+          opacity: 0.88,
+          parallaxSpeed: 1.5,
+          ampX: 30,
+          ampY: 20,
+          freq: 1.2,
+          phase: 1.5,
+          fadeEdge: 80
+        },
+        {
+          id: 3,
+          name: "Círculo 3 (Magenta Base)",
+          color: "#ff0059",
+          size: 220,
+          top: 104,
+          left: 50,
+          blur: 28,
+          opacity: 0.85,
+          parallaxSpeed: 0.9,
+          ampX: 20,
+          ampY: 40,
+          freq: 0.8,
+          phase: 3.0,
+          fadeEdge: 82
+        },
+        {
+          id: 4,
+          name: "Círculo 4 (Magenta Cópia)",
+          color: "#ff00ff",
+          size: 220,
+          top: 125,
+          left: 50,
+          blur: 28,
+          opacity: 0.85,
+          parallaxSpeed: 0.9,
+          ampX: 20,
+          ampY: 40,
+          freq: 0.8,
+          phase: 4.0,
+          fadeEdge: 82
+        },
+        {
+          id: 5,
+          name: "Círculo 5 (Rosa Base Final)",
+          color: "#ff7096",
+          size: 220,
+          top: 190,
+          left: 50,
+          blur: 28,
+          opacity: 1.0,
+          parallaxSpeed: 0.9,
+          ampX: 20,
+          ampY: 40,
+          freq: 0.8,
+          phase: 5.0,
+          fadeEdge: 100
+        }
+      ];
+
+      const bgContainer = document.getElementById("aura-canvas-container");
+      const orbsRenderLayer = document.getElementById("orbs-render-layer");
+
+      let currentScrollY = 0;
+      let targetScrollY = 0;
+      let time = 0;
+
+      function mountOrbs() {
+        if (!orbsRenderLayer) return;
+        orbsRenderLayer.innerHTML = "";
+        
+        document.body.style.backgroundColor = sceneConfig.bgColor;
+        bgContainer.style.backgroundColor = sceneConfig.bgColor;
+
+        orbs.forEach((orb) => {
+          const div = document.createElement("div");
+          div.id = `orb-el-${orb.id}`;
+          div.className = "aura-orb-element";
+
+          div.style.width = `${orb.size}vw`;
+          div.style.height = `${orb.size}vw`;
+          div.style.marginLeft = `-${orb.size / 2}vw`;
+          div.style.marginTop = `-${orb.size / 2}vw`;
+          div.style.top = `${orb.top}%`;
+          div.style.left = `${orb.left}%`;
+          div.style.filter = `blur(${orb.blur}vw)`;
+          div.style.mixBlendMode = sceneConfig.blendMode;
+
+          const edge = orb.fadeEdge || 85;
+          div.style.background = `radial-gradient(circle at center, ${orb.color} 0%, ${hexToRgba(orb.color, 0.75)} 35%, ${hexToRgba(orb.color, 0.4)} 65%, rgba(255,255,255,0) ${edge}%)`;
+
+          orbsRenderLayer.appendChild(div);
+        });
+      }
+
+      function loop() {
+        currentScrollY += (targetScrollY - currentScrollY) * 0.08;
+
+        const maxScroll = document.documentElement.scrollHeight - window.innerHeight || 1;
+        const progress = Math.min(Math.max(currentScrollY / maxScroll, 0), 1);
+
+        time += 0.015 * sceneConfig.windSpeed;
+
+        const rad = (sceneConfig.windDirection * Math.PI) / 180;
+        const windDirX = Math.cos(rad);
+        const windDirY = Math.sin(rad);
+        const screenFactor = Math.max(0.4, Math.min(window.innerWidth / 1200, 1.3));
+
+        orbs.forEach((orb) => {
+          const el = document.getElementById(`orb-el-${orb.id}`);
+          if (!el) return;
+
+          const t = time * orb.freq + orb.phase;
+          const turb = (Math.sin(t * 2.3) * Math.cos(t * 1.7)) * (18 * sceneConfig.windTurbulence * screenFactor);
+
+          const windMotionX = (Math.sin(t) * orb.ampX * screenFactor + turb + windDirX * 25 * screenFactor) * (sceneConfig.windIntensity * 0.4);
+          const windMotionY = (Math.cos(t * 0.9) * orb.ampY * screenFactor + turb * 0.7 + windDirY * 25 * screenFactor) * (sceneConfig.windIntensity * 0.4);
+
+          const pulse = 1.0 + Math.sin(t * 1.2) * sceneConfig.breathScale;
+          const scrollScale = 1.0 + (progress * 0.2);
+          const totalScale = pulse * scrollScale;
+
+          const scrollOffsetY = -(currentScrollY * orb.parallaxSpeed);
+
+          const finalX = windMotionX;
+          const finalY = scrollOffsetY + windMotionY;
+
+          el.style.transform = `translate3d(${finalX}px, ${finalY}px, 0px) scale(${totalScale})`;
+          el.style.opacity = orb.opacity;
+        });
+
+        requestAnimationFrame(loop);
+      }
+
+      window.addEventListener("scroll", () => {
+        targetScrollY = window.pageYOffset || document.documentElement.scrollTop;
+      }, { passive: true });
+
+      window.onload = function () {
+        targetScrollY = window.pageYOffset || document.documentElement.scrollTop;
+        currentScrollY = targetScrollY;
+
+        mountOrbs();
+        loop();
+      };
+    })();
+  </script>
+</body>
+</html>
